@@ -1,3 +1,4 @@
+
 ## Librerías / Configuraciones Ini
 library(dplyr)
 library(data.table)
@@ -135,3 +136,6 @@ cor_plots_vars(df_total_mean_america,10,18)
 ## PCA SUR-AMERICA
 pca_sur <- pca_plots(df_total_mean_sur)
 pca_ame <- pca_plots(df_total_mean_america)
+
+
+print('hola mundo  cruel')
