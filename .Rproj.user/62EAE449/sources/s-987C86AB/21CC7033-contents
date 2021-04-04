@@ -1,0 +1,19 @@
+(A=matrix(c(2,3),ncol=2))
+(sig=matrix(c(3/2,-1/2,-1/2,1/2),ncol=2))
+(omega=1)
+b=2
+(SIG11=A%*%sig)
+(SIG12=omega+A%*%sig%*%t(A))
+(SIG21=sig)
+(SIG22=sig%*%t(A))
+sig11=3/2
+sig11*t(A)
+1+(A*sig11)%*%t(A)
+  
+### PRUEBA DE CONGRUENCIA 
+A1=c(2,3)
+A2=matrix(c(4,5), ncol=2)
+A1
+A2
+A1%*%A2
+A2*A1

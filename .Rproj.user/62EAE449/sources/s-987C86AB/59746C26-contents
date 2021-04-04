@@ -1,0 +1,110 @@
+---
+title: "MANOVA HBAT"
+author: "Cristian Londoño"
+date: "31 de octubre de 2016"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Cargamos la libreria
+```{r, warning=FALSE}
+library(foreign)
+
+```
+Leemos los datos
+```{r}
+datos <- read.spss(file.choose(),to.data.frame=TRUE)
+class(datos)
+```
+
+Se realizan las codificaciones
+```{r, echo=FALSE}
+datos=within(datos,Codx6<-x6)
+datos=within(datos,Codx7<-x7)
+datos=within(datos,Codx8<-x8)
+datos=within(datos,Codx9<-x9)
+datos=within(datos,Codx10<-x10)
+datos=within(datos,Codx11<-x11)
+datos=within(datos,Codx12<-x12)
+datos=within(datos,Codx13<-x13)
+datos=within(datos,Codx14<-x14)
+datos=within(datos,Codx15<-x15)
+datos=within(datos,Codx16<-x16)
+datos=within(datos,Codx17<-x17)
+datos=within(datos,Codx18<-x18)
+
+datos[datos$x6<5,"Codx6"]<-"Mala"				
+datos[datos$x7<5,"Codx7"]<-"Mala"				
+datos[datos$x8<5,"Codx8"]<-"Mala"				
+datos[datos$x9<5,"Codx9"]<-"Mala"				
+datos[datos$x10<5,"Codx10"]<-"Mala"				
+datos[datos$x11<5,"Codx11"]<-"Mala"				
+datos[datos$x12<5,"Codx12"]<-"Mala"				
+datos[datos$x13<5,"Codx13"]<-"Mala"				
+datos[datos$x14<5,"Codx14"]<-"Mala"				
+datos[datos$x15<5,"Codx15"]<-"Mala"				
+datos[datos$x16<5,"Codx16"]<-"Mala"				
+datos[datos$x17<5,"Codx17"]<-"Mala"				
+datos[datos$x18<5,"Codx18"]<-"Mala"				
+
+datos[datos$x6>=5&datos$x6<=7.9,"Codx6"]<-"Buena"				
+datos[datos$x7>=5&datos$x7<=7.9,"Codx7"]<-"Buena"				
+datos[datos$x8>=5&datos$x8<=7.9,"Codx8"]<-"Buena"				
+datos[datos$x9>=5&datos$x9<=7.9,"Codx9"]<-"Buena"				
+datos[datos$x10>=5&datos$x10<=7.9,"Codx10"]<-"Buena"				
+datos[datos$x11>=5&datos$x11<=7.9,"Codx11"]<-"Buena"				
+datos[datos$x12>=5&datos$x12<=7.9,"Codx12"]<-"Buena"				
+datos[datos$x13>=5&datos$x13<=7.9,"Codx13"]<-"Buena"				
+datos[datos$x14>=5&datos$x14<=7.9,"Codx14"]<-"Buena"				
+datos[datos$x15>=5&datos$x15<=7.9,"Codx15"]<-"Buena"				
+datos[datos$x16>=5&datos$x16<=7.9,"Codx16"]<-"Buena"				
+datos[datos$x17>=5&datos$x17<=7.9,"Codx17"]<-"Buena"				
+datos[datos$x18>=5&datos$x18<=7.9,"Codx18"]<-"Buena"				
+
+datos[datos$x6>=8&datos$x6<=10,"Codx6"]<-"Excelente"				
+datos[datos$x7>=8&datos$x7<=10,"Codx7"]<-"Excelente"				
+datos[datos$x8>=8&datos$x8<=10,"Codx8"]<-"Excelente"				
+datos[datos$x9>=8&datos$x9<=10,"Codx9"]<-"Excelente"				
+datos[datos$x10>=8&datos$x10<=10,"Codx10"]<-"Excelente"				
+datos[datos$x11>=8&datos$x11<=10,"Codx11"]<-"Excelente"				
+datos[datos$x12>=8&datos$x12<=10,"Codx12"]<-"Excelente"				
+datos[datos$x13>=8&datos$x13<=10,"Codx13"]<-"Excelente"				
+datos[datos$x14>=8&datos$x14<=10,"Codx14"]<-"Excelente"				
+datos[datos$x15>=8&datos$x15<=10,"Codx15"]<-"Excelente"				
+datos[datos$x16>=8&datos$x16<=10,"Codx16"]<-"Excelente"				
+datos[datos$x17>=8&datos$x17<=10,"Codx17"]<-"Excelente"				
+datos[datos$x18>=8&datos$x18<=10,"Codx18"]<-"Excelente"
+```
+Se cambian algunos nombres de variables
+```{r, echo=FALSE}
+calidad <- datos$Codx6
+soporte <- datos$Codx8
+linea <- datos$Codx11
+imagen <- datos$Codx12
+flexibilidad <- datos$Codx17
+velocidad <- datos$Codx18
+```
+Se muestran algunas tablas de medias
+```{r}
+(medias1 <- aggregate(datos[,c("x19","x20","x21")],by=list(calidad), FUN=mean))
+(medias2 <- aggregate(datos[,c("x19","x20","x21")],by=list(soporte), FUN=mean))
+(medias3 <- aggregate(datos[,c("x19","x20","x21")],by=list(linea ), FUN=mean))
+(medias4 <- aggregate(datos[,c("x19","x20","x21")],by=list(imagen), FUN=mean))
+(medias5 <- aggregate(datos[,c("x19","x20","x21")],by=list(flexibilidad), FUN=mean))
+(medias6 <- aggregate(datos[,c("x19","x20","x21")],by=list(velocidad ), FUN=mean))
+```
+Realizamos la manova con las variables escogidas
+```{r}
+(datos_manova<-manova(cbind(x19,x20,x21)~calidad+soporte+linea+imagen+flexibilidad+velocidad,data=datos))
+summary(datos_manova, test = "Pillai")
+
+```
+Verificamos la significancia variable por variable
+```{r}
+summary.aov(manova(cbind(x19,x20,x21)~calidad+soporte+linea+imagen+flexibilidad+velocidad,data=datos))
+```
+
+
+

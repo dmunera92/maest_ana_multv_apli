@@ -1,0 +1,158 @@
+---
+title: 'Encuesta Calidad de Vida 2015: Vulnerabilidad'
+author: "Cristian Londoño"
+date: "22 de noviembre de 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+En primera instancia cargamos las librerias
+```{r Cargar librerias, include=FALSE}
+library(randomForest)
+library(rgdal)  
+library(leaflet) 
+```
+
+
+
+#### Vulnerabilidad Relativa #####
+Leemos los datos
+```{r}
+datosvulnerela <-  read.csv2("C:/Users/Cristian/Desktop/VARIABLES MAPAS/vvulnerela.csv", h=T)
+
+```
+Modificamos las variables y las codificamos 
+```{r}
+datos1=as.data.frame(datosvulnerela)
+# se consideran en situación de vulnerabilidad:
+# a los residentes de estratos 1 y 2:
+datos1$P_10_bin=ifelse(datos1$P_10=="1" | datos1$P_10=="2",1,0) 
+
+#datos1$P_36_bin=ifelse(datos1$P_36=="No",1,0) No consideraremos si estudia
+
+# si su estado de salud es malo o regular:
+datos1$P_342_bin=ifelse(datos1$P_342=="Malo" | datos1$P_342=="Regular",1,0)
+# si su calidad de vida es considerada mala o muy mala:
+datos1$P_323_bin=ifelse(datos1$P_323=="Mala" | datos1$P_323=="Muy mala",1,0)
+# afiliación al sistema de seguridad social en salud
+datos1$P_66_bin=ifelse(datos1$P_66=="No está afiliado y está encuestado en el SISBEN" |                         datos1$P_66=="No está afiliado y no está encuestado en el SISBEN",1,0)
+# afiliación al sistema de riesgos profesionales ARP
+datos1$P_68_bin=ifelse(datos1$P_68=="No está afiliado" ,1,
+                       ifelse(datos1$P_68=="No aplica",NA,0))
+# vivienda en pésimas condiciones
+datos1$P_146_bin=ifelse(datos1$P_146=="Rancho o vivienda de desechos" ,1,0)
+# paredes de los muros exteriores debiles
+datos1$P_147_bin=ifelse(datos1$P_147=="Bahareque sin revocar, guadua, caña, esterilla, otro vegetal" | datos1$P_147=="Materiales de desechos y otros (zinc, tela, lona, cartón, latas, desechos plásticos, etc)",1,0)
+# pésimos pisos 
+datos1$P_148_bin=ifelse(datos1$P_148=="Tierra o arena" ,1,0) 
+# indice multidmientsional de cálidad de vida menor a 25
+#datos1$IMCV=as.numeric(datos1$IMCV, sep=",",dec=",")
+#datos1$P_IMCV__bin=ifelse(datos1$IMCV < 25, 1,
+ #                         ifelse(datos1$IMCV=="¡NULO!",NA, 0))
+# Ahora eliminamos las variables que no son binarias
+
+datos1=datos1[,c(-2,-3,-4,-5,-6,-7,-8,-9,-10,-11)]
+datos_barrios=aggregate(.~P_7,data=datos1,FUN = mean, na.rm = T, na.action = NULL)
+datos_carac=datos_barrios[,2:9]  # Trabajamos con nros por el dendogrma
+#rownames(datos_carac)=datos_barrios$P_7
+```
+
+Clustering
+```{r}
+diab=dist(datos_carac, method="maximum")
+##Obtenemos el cluster y lo graficamos
+cluster_bar=hclust(diab,method="ward.D2")
+plot(cluster_bar,main="Dendograma de agrupamiento Vulnerabilidad")
+cluster_bat_4=cutree(cluster_bar,k=4)
+rect.hclust(cluster_bar, k=4)
+#abline(h=2, col="red", lty=2)
+
+
+```
+
+
+Ahora debemos asignarle a cada barrio su nro de cluster
+```{r}
+diabt<-cbind(datos_carac,cluster_bat_4)
+head(diabt)
+liata <-data.frame(Hc=diabt[,9])#Asignamos la columna correspondiente al cluster
+head(liata)  
+liata   # Verificamos que la asignación sea correcta
+```
+
+
+Lo sacamos de Excel 
+```{r}
+x=c(1,0,3,1,2,3,3,2,4,1,1,1,1,1,2,0,4,0,3,2,3,3,1,2,1,3,0,0,1,3,3,3,3,4,3,3,3,4,3,1,1,3,0,3,3,1,4,1,4,4,4,3,1,3,1,1,2,3,3,4,4,1,2,4,2,4,2,0,3,1,1,1,1,4,1,2,3,1,2,3,3,4,3,4,1,3,3,1,0,1,3,1,3,4,0,3,3,1,0,3,3,3,4,1,1,0,4,1,3,1,4,4,4,3,0,3,3,4,3,4,4,4,3,1,1,1,1,3,1,0,1,3,4,1,0,3,3,3,1,4,4,3,2,3,0,2,1,4,1,0,4,1,4,1,2,3,1,1,2,1,3,0,3,3,3,4,1,1,3,3,1,1,2,1,1,2,4,3,4,3,4,4,1,1,4,2,1,0,3,3,3,4,3,1,1,4,2,1,4,4,1,3,3,2,0,1,1,3,1,3,1,2,1,1,2,1,2,3,2,2,1,1,2,0,0,1,3,3,3,2,1,3,0,3,3,2,2,1,1,3,1,1,4,1,3,3,3,0,1,4,2,1,1,3,2,2,1,3,1,2,4,3,3,4,1,4,3,3,4,1,3,0,3,1,1,4,0,2,4,3,0,2,1,3,3,0,3,4,2,2,1,2,4,2,1,1,1,3,3,3,1,1,1,2,3,4,1,1,2,1,3,4,4,1,1,3,0,3,4,4,3,1,1,1,2,4,1,2,1,1,1,1)
+```
+
+
+Asignar colores
+```{r}
+Colores=c("red", "gold", "green","blue")
+
+color=ifelse(x==0,"white" ,
+             ifelse(x==1,Colores[1] ,
+                    ifelse(x==2,Colores[2] ,
+                           ifelse(x==3,Colores[3] ,
+                                         Colores[4]  
+                                  ))))
+```
+
+
+Ahora vamos a colorear
+```{r}
+
+##comando mapas 
+barrios_med=readOGR("C:/Users/Cristian/Desktop/Semestre 2016 - 2/MULTIVARIADO 2/TRABAJO MAPAS/Barrio_Vereda/Barrio_Vereda.shp",layer="Barrio_Vereda")
+m=leaflet(barrios_med)  
+m=addTiles(m) 
+nombres_barrios=iconv(barrios_med@data$NOMBRE,"UTF-8","ISO_8859-1")
+
+## Comando colores de barrios
+colores=color
+m=addPolygons(m,popup=nombres_barrios,color=colores)
+m
+
+```
+
+Ahora necesitamosidentificar que significan los colores
+```{r}
+head(diabt)
+indices <- aggregate(.~cluster_bat_4, data=diabt, FUN=mean)
+indices
+```
+
+Ahora vemos que grupos tienen mejores puntuaciones
+```{r}
+##Obtenemos los 4 grupos del cluster
+# dividimos diabt por sus respectios clusters
+diab1<-subset(diabt,cluster_bat_4==1)
+diab2<-subset(diabt,cluster_bat_4==2)
+diab3<-subset(diabt,cluster_bat_4==3)
+diab4<-subset(diabt,cluster_bat_4==4)
+
+
+##Una ves obtenidos los 4 grupos, miramos quienes tienen mejores puntuaciones en todas las varibales.
+(punt1=aggregate(.~cluster_bat_4,data=diab1,FUN = mean))
+
+(punt2=aggregate(.~cluster_bat_4,data=diab2,FUN = mean))
+
+(punt3=aggregate(.~cluster_bat_4,data=diab3,FUN = mean))
+
+(punt4=aggregate(.~cluster_bat_4,data=diab4,FUN = mean))
+
+
+
+##Promedios por clusters
+
+(prom1<-apply(punt1[,2:6],1,sum)/5)
+(prom2<-apply(punt2[,2:6],1,sum)/5)
+(prom3<-apply(punt3[,2:6],1,sum)/5)
+(prom4<-apply(punt4[,2:6],1,sum)/5)
+
+  
+```
