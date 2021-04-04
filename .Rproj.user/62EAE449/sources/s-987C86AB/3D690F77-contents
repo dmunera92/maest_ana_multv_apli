@@ -1,0 +1,274 @@
+---
+title: "TF_MULTIV"
+author: "Cristian Londoño"
+date: "30 de noviembre de 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Cargamos las librerias
+
+```{r, message=FALSE, warning=FALSE, include=FALSE}
+
+library(foreign)
+library(haven)
+library(readxl)
+library(randomForest)
+library(neuralnet)
+library(e1071)
+library(pROC)
+
+```
+
+Cargamos los datos 
+
+```{r}
+datos_c <- read_sav("C:/Users/Cristian/Desktop/TRABAJO FINAL - MACHINE LEARNING/Características y composición del hogar.sav")
+datos_c[datos_c=="NaN"]<-NA
+datos_h <- read_sav("C:/Users/Cristian/Desktop/TRABAJO FINAL - MACHINE LEARNING/Datos de la vivienda.sav")
+datos_h[datos_h=="NaN"]<-NA
+datos_s <- read_sav("C:/Users/Cristian/Desktop/TRABAJO FINAL - MACHINE LEARNING/Salud.sav")
+datos_s[datos_s=="NaN"]<-NA
+datos_t <- read_sav("C:/Users/Cristian/Desktop/TRABAJO FINAL - MACHINE LEARNING/Fuerza_ de_ trabajo.sav")
+datos_t[datos_t=="NaN"]<-NA
+
+```
+
+Generamos la base de datos
+
+```{r}
+
+#DATOS- Carac y compos Hogar
+datos_c$hijos = ifelse(datos_c$P6051==3,1,0)
+datos_c$madre = ifelse(datos_c$P6083==1,1,0)
+datos_c$padre = ifelse(datos_c$P6081==1,1,0)
+datos_c$nietos= ifelse(datos_c$P6051==4  & (datos_c$P6083==1 | datos_c$P6081==1 ),1,0)
+datos_c$M_P   = ifelse(datos_c$P6083==1&datos_c$P6081==1,1,0)
+datos.hogar=data.frame(hogar=datos_c$DIRECTORIO,
+                       hijos=datos_c$hijos,
+                       madre=datos_c$madre,
+                       padre=datos_c$padre,
+                       nietos=datos_c$nietos,
+                       myp= datos_c$M_P)
+#datos etnicos
+datos_c$etnica= ifelse(datos_c$P6080==1&datos_c$P6051==1,1,
+                ifelse(datos_c$P6080==2&datos_c$P6051==1,2,
+                ifelse(datos_c$P6080==3&datos_c$P6051==1,3,
+                ifelse(datos_c$P6080==4&datos_c$P6051==1,4,
+                ifelse(datos_c$P6080==5&datos_c$P6051==1,5,
+                ifelse(datos_c$P6080==6&datos_c$P6051==1,6,0))))))
+datos.etnia=data.frame(hogar=datos_c$DIRECTORIO,etnia=datos_c$etnica)
+#View(datos.etnia)
+
+#DATOS - Salud
+datos_s$sistema=ifelse(datos_s$P6090==1,1,0)
+datos_s$estado_s=ifelse(datos_s$P6127==1 |datos_s$P6127==2,1,0)
+datos.salud=data.frame(hogar=datos_s$DIRECTORIO,sistema_salud=datos_s$sistema,estado_salud=datos_s$estado_s)
+#View(datos.hogar)
+ 
+# DATOS - Trabajo
+datos.trabajo=data.frame(hogar=datos_t$DIRECTORIO,ganacia=datos_t$P6750)
+
+datos_hogar_Imp=data.frame(estrato=datos_h$P8520S1A1,clase_viv=datos_h$P3)
+
+#AGGREGATE
+agr_hijos<-aggregate(data=datos.hogar,.~hogar,FUN=sum)
+agr_hijos$hyn<-agr_hijos$hijos+agr_hijos$nietos
+agr_salud=round(aggregate(data=datos.salud,.~hogar,FUN=mean),digits = 3)
+agr_etnica=aggregate(data=datos.etnia,.~hogar,FUN=max)
+agr_trabajo<-aggregate(data=datos.trabajo,.~hogar,FUN=sum,na.action = NULL,na.rm=TRUE)
+#View(agr_trabajo)
+hogar=datos_t$DIRECTORIO
+# adjuntar todos los datos por hogar
+datos.Full=cbind(hogar=agr_hijos$hogar,
+                 no.hijos=agr_hijos$hijos,
+                 madre=agr_hijos$madre,
+                 padre=agr_hijos$padre,
+                 myp=agr_hijos$myp  ,
+                 hyn=agr_hijos$hyn  ,
+                 etmoa=agr_etnica$etnia,
+                 estrato=datos_hogar_Imp$estrato,
+                 clase=datos_hogar_Imp$clase_viv,
+                 ganancia=agr_trabajo$ganacia,
+                 salud=agr_salud$sistema_salud,
+                 estado_Salud=agr_salud$estado_salud)
+#View(datos.Full)
+#datos.full=as.data.frame(datos.Full)
+
+```
+Asignamos si la variable es factor o numerica
+```{r}
+datos.Full[,"hogar"]<-as.numeric(datos.Full[,"hogar"])
+datos.Full[,"no.hijos"]<-as.numeric(datos.Full[,"no.hijos"])
+datos.Full[,"madre"]<-as.numeric(datos.Full[,"madre"])
+datos.Full[,"padre"]<-as.numeric(datos.Full[,"padre"])
+datos.Full[,"myp"]<-as.numeric(datos.Full[,"myp"])
+datos.Full[,"hyn"]<-as.numeric(datos.Full[,"hyn"])
+datos.Full[,"ganancia"]<-as.numeric(datos.Full[,"ganancia"])
+datos.Full[,"salud"]<-as.numeric(datos.Full[,"salud"])
+datos.Full[,"estado_Salud"]<-as.numeric(datos.Full[,"estado_Salud"])
+datos.Full[,"etmoa"]<-as.factor(datos.Full[,"etmoa"])
+datos.Full[,"clase"]<-as.factor(datos.Full[,"clase"])
+datos.Full[,"estrato"]<-as.factor(datos.Full[,"estrato"])
+
+```
+La guardamos como una data.frame
+
+```{r}
+datos_full=as.data.frame(datos.Full)
+```
+
+Ahora quitamos las variable hogar
+```{r}
+
+datos_full=datos_full[,-1]
+
+```
+
+Todas las variables estan como factores. Reasignamos sus clases.
+
+```{r}
+
+# convertimos las numericas
+datos_full$no.hijos=as.numeric(datos_full$no.hijos)
+datos_full$hyn=as.numeric(datos_full$hyn)
+#datos_full$ganancia=as.numeric(datos_full$ganancia)
+#datos.full$salud=as.numeric(datos.full$salud)
+#datos.full$estado_Salud=as.numeric(datos.full$estado_Salud)
+
+# recodificamos las categoricas
+datos_full$madre=as.factor(ifelse(datos_full$madre!=0,1,0))
+datos_full$padre=as.factor(ifelse(datos_full$padre!=0,1,0))
+datos_full$myp=as.factor(ifelse(datos_full$myp!=0,1,0))
+# ganancia, salud y Estado salud estan malas, toca sacarlas
+datos_full=datos_full[,c(-9,-10,-11)]
+
+# se crea la variable rural para la regresión lígistica 
+#datos_full$rural = as.factor(ifelse(datos.full$clase==2 |datos.full$clase==3, 1, 0))
+
+# para la regresión logística pequeña
+#datos.full=datos.full[,c(-1,-2,-3,-4,-5,-9, -10, -11, -12)] 
+
+```
+
+Entrenamiento
+Para entrenamiento usaremos 16893
+Para validación usaremos 5631
+```{r}
+id.entrenamiento=sample(1:length(datos_full$hyn),16893,replace=FALSE)  
+datos.ent=datos_full[id.entrenamiento,]
+datos.val=datos_full[-id.entrenamiento,]
+```
+
+## Regresión Logística
+```{r}
+reglog=glm(rural~.,data=datos.ent,family="binomial")
+summary(reglog)
+
+
+```
+
+
+# Regresión Poisson 
+```{r}
+# quitamos una de las variables que índican nro de hijos
+datos_full=datos_full[, -1]
+regpoi=glm(hyn~.,data=datos.ent,family="poisson")
+summary(regpoi)
+```
+
+# Ajuste del modelo 
+
+
+```{r}
+# Ahora se ajusta un modelo con las variables que resultaron significativas:
+  
+m.lr2=glm(DFREE~AGE+IVHX+TREAT+SITE,data=datos.ent,family="binomial")
+summary(m.lr2)
+
+# Veamos ahora cómo se comporta el modelo
+# de regresión logística en el conjunto de 
+# datos de entrenamiento.
+# Para ello obtenemos las probabilidades predichas
+# por el modelo para los conjuntos de entrenamiento y de validación:
+
+prob_lr_pred_ent=predict(m.lr2,type="response")
+prob_lr_pred_val=predict(m.lr2,newdata=datos.val,type="response")
+
+
+# Una validación básica consiste en verificar
+# que las probabilidades más altas que asigna
+# el modelo sean para las observaciones donde
+# el evento de interés se realiza:
+  
+par(mfrow=c(1,2))
+boxplot(prob_lr_pred_ent~datos.ent$DFREE,main="Entrenamiento",ylab=c(0,1))
+boxplot(prob_lr_pred_val~datos.val$DFREE,main="Validación",ylab=c(0,1))
+
+#Otro método de validación es con el área bajo la curva:
+  
+m.lr2_roc_ent=roc(datos.ent$DFREE~prob_lr_pred_ent)
+m.lr2_roc_val=roc(datos.val$DFREE~prob_lr_pred_val)
+#El AUC para los datos de entrenamiento es 0.6611095 y para los datos de validación es 0.5571652.
+roc.test(m.lr2_roc_ent,m.lr2_roc_val)
+
+```
+Vamos a exportar los datos al R para ver que sucede 
+
+
+```{r}
+library(xlsx)
+library()
+write.xlsx(, file, sheetName="Sheet1")
+```
+
+
+```{r}
+datos_full=as.matrix(datos_full)
+datos_full$hyn=as.factor(datos_full[,"hyn"])
+model_rec_rf=randomForest(hyn~.,data=datos_full,
+                          importance=TRUE,proximity=TRUE,ntree=1000,na.action = NULL)
+
+model_rec_rf=randomForest(hyn~.,data=datos_Full,
+                          importance=TRUE,proximity=TRUE,ntree=5000)
+View(datos_full)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

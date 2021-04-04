@@ -1,0 +1,149 @@
+---
+title: "Modelo de Regresión Poisson"
+author: "Cristian Londoño"
+date: "3 de diciembre de 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Primero descargamos las librerias y la base de datos. 
+
+```{r, message=FALSE, warning=FALSE, include=FALSE, echo=FALSE}
+
+library(foreign)
+library(haven)
+library(readxl)
+library(randomForest)
+library(neuralnet)
+library(e1071)
+library(pROC)
+
+```
+
+
+
+```{r , echo=FALSE}
+
+
+#Descargamos las bases 
+dvivienda <- read.csv2(file.choose(),h=T) ## leemos datos de vivienda
+dcompo <- read.csv2(file.choose(),h=T)    ## leemos datos de composición
+#las juntamos por directorio
+base <- merge(dvivienda,dcompo,by.dcompo=DIRECTORIO)
+attach(base)
+
+# Ahora debemos filtrar antes de categorizar
+
+base1 <- subset(base, (parentesco==3)&(padre==1 | madre==1))
+
+# Ahora que tenemos la base por hijos debemos generar :
+# variable nro hijos
+
+nhijos <- aggregate(data=base1,.~DIRECTORIO, FUN=length)
+nhijos <- nhijos[, c(-3,-4,-5,-6,-7,-8,-9,-10,-11,-12)]
+nhijos <- nhijos[, c(-2,-3)]
+colnames(nhijos) <- c("DIRECTORIO", "nuhijos")
+
+# le metemos la variable a la base de datos 
+
+base2 <- merge(base1,nhijos,by.nhijos=DIRECTORIO)
+
+# quitamos parentesco 
+
+base2 <- base2[,-8] 
+
+# ahora solo falta categorizar algunas variables
+
+base2$region <- as.factor(base2$region)
+base2$departamento <- as.factor(base2$departamento)
+base2$ clase     <- as.factor(base2$clase)
+base2$sexo      <- as.factor(base2$sexo)
+base2$ecivil <- as.factor(base2$ecivil)
+base2$padre <- as.factor(base2$padre)
+base2$madre <- as.factor(base2$madre)
+base2$cultura <- as.factor(base2$cultura)
+
+# ahora le quitamos la variable directorio
+base2 <- base2[,-1]
+
+# Tenemos lista nuestra base para trabajar.
+
+#```{r,echo=FALSE}
+#recom=factor(round(base.ent$nuhijos),ordered=TRUE)
+#table(recom)
+#
+#MDSplot(rf2, fac=recom,k=3, pch=as.character(recom),palette = rep(1:7))
+#
+#```
+
+
+```
+
+veamos las variables a considerar:
+```{r}
+summary(base2)
+```
+
+La variable región se refiere a la región del país de donde provienen los datos, por ejemplo de la región andina, o de los llanos, etc. El departamento hace referencias a los departamentos del país como Antioquia, la variables clase hace referencia a si la casa esta en una hubicación a la hubicación del hogar, como si es urbana o rural. Se consideraron también el estrato, la edad, el estado civíl, si el padre vive en el hogar, si la madre vive en el hogar, el nivel educativo de padre y madre, si proviene de una cultura indigena y se creó la variable número de hijos en el hogar que será la variables dependiente en el modelo.
+
+Separemos ahora los datos en entrenamiento y validación
+```{r}
+set.seed(20)
+id.entrenamiento=sample(1:27831,14000,replace=FALSE)
+base.ent=base2[id.entrenamiento,]
+base.val=base2[-id.entrenamiento,]
+```
+
+
+
+Ahora ajustamos el modelo tomando como variable dependiente el número de hijos y el resto de varibles como regresoras:
+
+```{r  , message=FALSE, warning=FALSE}
+m.lr=glm(nuhijos~.,data=base.ent,family="poisson")
+summary(m.lr)
+
+
+
+```
+
+
+
+Ahora ajustamos de nuevo un modelo sólo con las variables que resultaron significativas en al menos un nivel:
+```{r}
+m.lr2=glm(nuhijos~region+departamento+clase+estrato+edad+padre+neducacionpadre+madre,data=base.ent,family="poisson")
+summary(m.lr2)
+```
+Podemos observa entonces que todas las variables resultan significativas en algún nivel.
+
+
+Veamos ahora como se comporta el modelo con los datos de validación:
+```{r, echo=FALSE}
+prob_lr_pred_ent=predict(m.lr2,type="response")
+prob_lr_pred_val=predict(m.lr2,newdata=base.val,type="response")
+length(prob_lr_pred_val)+length(prob_lr_pred_ent)
+```
+```{r , echo=FALSE}
+par(mfrow=c(1,2))
+boxplot(prob_lr_pred_ent~base.ent$nuhijos,main="Entrenamiento",ylab=c(0,1))
+boxplot(prob_lr_pred_val~base.val$nuhijos,main="Validación",ylab=c(0,1))
+```
+En general las predicciones del modelo no son muy buenas y no es recomendable predecir el numero de hijos de una familia con este modelo.
+
+```{r}
+
+(m.lr2_roc_ent=roc(base.ent$nuhijos~prob_lr_pred_ent))$auc
+
+
+```
+```{r}
+(m.lr2_roc_val=roc(base.val$nuhijos~prob_lr_pred_val))$auc
+```
+
+```{r , echo=TRUE}
+plot(m.lr2_roc_ent,col=2,main="Área bajo la curva de entrenamiento",grid=TRUE,xlim=c(1,0))
+```
+
+Podemos concluir entonces que el modelo no es apropiado para predecir el número de hijos en una familia colombiana. 

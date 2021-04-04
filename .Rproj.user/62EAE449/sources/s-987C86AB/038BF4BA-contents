@@ -1,0 +1,75 @@
+---
+title: "Breve introducción al análisis espacial en R"
+author: "Juan David Ospina Arango - Universidad de Antioquia"
+date: "25 de octubre de 2016"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+En el [enlace](https://www.medellin.gov.co/geomedellin/#divOpenData) de la Alcald????a de Medell????n, en la rúbrica de "Ordenamiento territorial" se encuentra disponible el archivo [Barrio Vereda](http://geomedellin.m-medellin.opendata.arcgis.com/datasets/c844f0fd764f41b2a808d8747457de8a_4). Este archivo es la base para lo que haremos a continuación. Debemos descomprimirlo y ubicarlo en una carpeta.
+
+Se utilizarán los paquetes *rgdal* y *leaflet*:
+
+
+```{r message=FALSE}
+library(rgdal)
+library(leaflet)
+```
+
+A continuación leemos el archivo utilizando la función *readOGR*:
+
+```{r}
+barrios_med=readOGR("C:/Users/Cristian/Desktop/Semestre 2016 - 2/MULTIVARIADO 2/TRABAJO MAPAS/Barrio_Vereda/Barrio_Vereda.shp",layer="Barrio_Vereda")
+```
+
+Este archivo es un *shapefile* y es una de las estructuras en las que puede utilizarse información proveniente de los sistemas de información geograf????ca (GIS por sus siglas en inglés).
+
+Veamos la lista de los barrios:
+```{r}
+print(barrios_med@data$NOMBRE)
+```
+Como se puede observar esta lista tiene problemas de codificación. Una búsqueda en internet nos lleva a determinar que los nombres de los barrios y veredas se leyeron con una codificación incorrecta. En particular, sabemos que están guardados con una codificación UTF-8 pero algunos caracteres se interpretaron como ISO-8859-1. El siguiente código muestra cómo se puede utilizar la función *iconv()* para arreglar esto:
+
+```{r}
+nombres_barrios=iconv(barrios_med@data$NOMBRE,"UTF-8","ISO_8859-1")
+print(nombres_barrios)
+```
+
+
+Ahora que los nombres de barrios y veredas fueron correctamente le????dos procederemos a hacer un mapa simple:
+```{r}
+m=leaflet(barrios_med)
+m=addTiles(m)
+m
+```
+
+Ahora superpongamos los barrios:
+```{r}
+m=addPolygons(m,popup=nombres_barrios)
+m=addTiles(m)
+m
+```
+
+Ahora pongamosle color a los barrios de manera aleatoria. Imaginemos que tenemos los barrios agrupados por caracter????sticas que llamamos naranja, verde y amarillo. Asignemos aleatoriamente estas caracter????sticas:
+
+```{r}
+colores=sample(x=c("orange","green","yellow"),size=length(nombres_barrios),replace=TRUE)
+```
+
+Ahora veamos el mapa con estos colores:
+```{r}
+m=addPolygons(m,popup=nombres_barrios,color=colores)
+m
+```
+
+Para aprender más sobre sistemas de información geográfica se recomienda:
++ [Enlace a wikipedia sobre GIS](https://en.wikipedia.org/wiki/Geographic_information_system)
+
+Para aprender más sobre leaflet y sus aplicaciones:
+
++ [Leaflet for R](https://rstudio.github.io/leaflet/)
++ [The leaflet package for online mapping in R](https://www.r-bloggers.com/the-leaflet-package-for-online-mapping-in-r/)
++ [Creating a Leaflet choropleth map with a pop-up in R](https://rpubs.com/walkerke/leaflet_choropleth)
++ [ggmap: Spatial Visualization with ggplot2](https://journal.r-project.org/archive/2013-1/kahle-wickham.pdf)
++ [Making Maps with R](http://eriqande.github.io/rep-res-web/lectures/making-maps-with-R.html): muestra cómo hacer mapas con ggplot.
